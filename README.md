@@ -12,12 +12,12 @@ https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-I
 #### 3.2 ros2 pkg create --build-type ament_cmake mcity_msg
 #### 3.3 copy "mcity_msg/msg" folder into the new "mcity_msg" folder
 #### 3.4 add the following lines to the CMakeLists.txt inside:
-'''
+```
 find_package(rosidl_default_generators REQUIRED)
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MAPPTrigger.msg"
 )
-'''
+```
 3.5 add the following lines to the package.xml:
 <buildtool_depend>rosidl_default_generators</buildtool_depend>
 <exec_depend>rosidl_default_runtime</exec_depend>
