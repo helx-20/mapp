@@ -1,4 +1,4 @@
-# mapp
+# mapp project
 ## mapp setup
 1. configure ubuntu-22.04 
 https://ubuntu.com/download/desktop
