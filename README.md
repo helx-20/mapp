@@ -18,7 +18,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/MAPPTrigger.msg"
 )
 ```
-3.5 add the following lines to the package.xml:
+#### 3.5 add the following lines to the package.xml:
 <buildtool_depend>rosidl_default_generators</buildtool_depend>
 <exec_depend>rosidl_default_runtime</exec_depend>
 <member_of_group>rosidl_interface_packages</member_of_group>
