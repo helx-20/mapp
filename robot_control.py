@@ -480,13 +480,11 @@ def smart_wait(time):
 
 # connect to vehicle
 sio2.connect(server2, namespaces=[namespace2])
-# sio2.wait()
 
 # connect to robot
 sio.connect(server, namespaces=[namespace])
 while not connected:
     time.sleep(0.02)
-# sio.wait()
 print("connected")
 
 # receive vehicle info and trigger robot   
@@ -509,7 +507,7 @@ while current_case_id < total_case_num:
     #gps_test('./',vehicle_pos,robot_pos)
     print(np.linalg.norm(vehicle_pos-robot_pos))
     update_dis_buffer()
-    if trigger_flag(trigger_dis,robot_pos,vehicle_pos) and 0:
+    if trigger_flag(trigger_dis,robot_pos,vehicle_pos):
         print("trigger")
         # go ahead
         trigger(proxy_id, meters, meters_per_second)
