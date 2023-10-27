@@ -28,9 +28,10 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 #### 3.7 colcon build --packages-select mcity_msg
 #### 3.8 . ~/ros2_humble/install/local_setup.bash
 
-4. configure python environment
-4.1 conda create -n mapp python=3.10 (need to be the same version as ros2)
-4.2 pip install:
+### 4. configure python environment
+#### 4.1 conda create -n mapp python=3.10 (need to be the same version as ros2)
+#### 4.2 pip install:
+```
 python-dotenv==1.0.0
 rospy2==1.0.3
 setuptools==68.2.2
@@ -38,10 +39,11 @@ flask-socketio==5.3.4
 numpy==1.26.1
 pandas==2.1.1
 requests==2.31.0
+```
 
-5. enable remote control
-5.1 ssh connect to mcity server 35.0.1.xxx
-5.2 proxy_launch.sh / proxy_control.sh (setup environment)
-5.3 proxy_enable.sh (enable remote control of the robot)
+### 5. enable remote control
+#### 5.1 ssh connect to mcity server 35.0.1.xxx
+#### 5.2 proxy_launch.sh / proxy_control.sh (setup environment)
+#### 5.3 proxy_enable.sh (enable remote control of the robot)
 
-6. run the code to trigger movement
+### 6. run the code to trigger movement
