@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import socketio
 import rospy2 as rospy
 import json
+import numpy as np
 from std_msgs.msg import String
 from mcity_msg.msg import MAPPTrigger
 
@@ -129,6 +130,8 @@ def trigger_callback():
 
 def trigger(proxy_id, meters, meters_per_second):
     print(f"Sending trigger for ID {proxy_id} to {server}")
+    global sent
+    sent = False
     sio.emit(
         channel,
         {
@@ -146,6 +149,8 @@ def trigger(proxy_id, meters, meters_per_second):
         namespace=namespace,
         callback=trigger_callback
     )
+    while not sent:
+        time.sleep(0.001)
 
 
 def trigger_msg(msg):
@@ -197,7 +202,6 @@ def estop(proxy_id):
 rospy.init_node('MAPP_Driver', anonymous=True)
 rospy.Subscriber('/mapp/trigger', MAPPTrigger, trigger)
 pub_mapp_state = rospy.Publisher('/mapp/state', String, queue_size=1)
-
 
 
 
@@ -327,7 +331,126 @@ def on_v2x(data):
 
 
 
-####################################################################
+################################################################################################
+
+# trigger signal
+def trigger_flag(trigger_dis,robot_pos,vehicle_pos):
+    #L2_dis = np.linalg.norm(robot_pos-vehicle_pos)
+    dis = np.linalg.norm(robot_pos-vehicle_pos)
+    trigger_dis = 30
+    if dis < trigger_dis and dis > 0: #and np.sqrt(pow(L2_dis,2)-pow(dis,2)) < 5:
+        return True
+    else:
+        return False
+    
+# reverse signal
+def reverse_flag():
+    global dis_buffer
+    vehicle_pos,robot_pos = get_pos()
+    distance = np.linalg.norm(robot_pos-vehicle_pos)
+    if distance > 20 and dis_buffer[-1] > dis_buffer[-2]:
+        return True
+    else:
+        return False
+
+# transition from lat lon to pos
+import utm
+def get_pos():
+    global vehicle_lat,vehicle_lon,robot_lat,robot_lon
+    vehicle_pos_tmp = utm.from_latlon(vehicle_lat,vehicle_lon)
+    vehicle_pos = np.array(vehicle_pos_tmp[0:2])
+    robot_pos_tmp = utm.from_latlon(robot_lat,robot_lon)
+    robot_pos = np.array(robot_pos_tmp[0:2])
+    return vehicle_pos,robot_pos
+
+# distance error
+def get_err(trigger_dis):
+    vehicle_pos,robot_pos = get_pos()
+    distance = np.linalg.norm(robot_pos-vehicle_pos)
+    dis_err = np.abs(trigger_dis-distance)
+    return dis_err
+    
+# get test info from json file
+import json
+def load_test_info(path):
+    with open(path, "r", encoding="utf-8") as f:
+        content = json.load(f)
+    test_info_dict = []
+    for level in ['low','mid','high']:
+        for info in content[level]:
+            info.update({'Risk level':level})
+            test_info_dict.append(info)
+    return test_info_dict
+
+# init distance buffer
+def init_dis_buffer(buffer_len):
+    dis_buffer = []
+    for i in range(buffer_len):
+        time.sleep(0.01)
+        vehicle_pos,robot_pos = get_pos()
+        dis_buffer.append(np.linalg.norm(vehicle_pos-robot_pos))
+    print("distance buffer ready")
+    return dis_buffer
+
+# extract test info
+def extract_test_info(test_info):
+    meters = test_info['crossing dis']
+    meters = 10
+    meters_per_second = test_info['crossing sp']
+    trigger_dis = test_info['triggered dis']
+    return meters, meters_per_second, trigger_dis
+
+# get gps test data
+import csv
+def gps_test(path,vehicle_pos,robot_pos):
+    with open(path+'vehicle_pos.csv', 'a', newline='') as csvfile:
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(list(vehicle_pos)+[Timestamp])
+    with open(path+'robot_pos.csv', 'a', newline='') as csvfile2:
+        csvwriter2 = csv.writer(csvfile2)
+        csvwriter2.writerow(list(robot_pos)+[robot_timestamp])
+
+# update distance buffer
+def update_dis_buffer():
+    vehicle_pos,robot_pos = get_pos()
+    buffer_len = len(dis_buffer)
+    dis_buffer.append(np.linalg.norm(vehicle_pos-robot_pos))
+    dis_buffer.pop(0)
+    dis_buffer[buffer_len-1] = np.mean(np.array(dis_buffer[buffer_len-1-100:buffer_len]))
+
+# record all case data
+import pandas as pd
+def record_all_case_data(all_case_data,path,current_case_id=0,test_info=None,mode='running'):
+    test_key_all = ["case_id","Risk level","Triggered dis",'Crossing sp',"Crossing dis",'Initial timestamp',"Dis err",'Sp err','VUT init sp']
+    if mode == 'running':
+        meters, meters_per_second, trigger_dis = extract_test_info(test_info)
+        tmp_data = [current_case_id+1,test_info["Risk level"],trigger_dis,
+                meters_per_second,meters,Timestamp,get_err(trigger_dis),0,vehicle_v]
+        all_case_data.append(tmp_data)
+        data_tmp = pd.DataFrame(columns=test_key_all,data=tmp_data)
+        data_tmp.to_csv(path+'all_case_{}_{}.csv'.format(current_case_id+1,time.time()),index=False)
+        return all_case_data
+    else:
+        data_tmp = pd.DataFrame(columns=test_key_all,data=all_case_data)
+        data_tmp.to_csv(path+'all_case_{}.csv'.format(time.time()),index=False)
+# record each case data
+def record_each_case_data(path,current_case_id,meters_per_second):
+    test_key_each = ['timestamp', 'VUT x', 'VUT y', 'VUT sp', 'VUT lon sp', 'VUT lat sp', 'VUT acc', 'VUT lon acc', 'VUT lat acc', 'VUT heading', 'challenger x', 'challenger y', 'challenger sp', 'challenger lon sp', 'challenger lat sp', 'challenger acc', 'challenger lon acc', 'challenger lat acc', 'challenger heading']
+    vehicle_pos,robot_pos = get_pos()
+    each_case_data = [[Timestamp,vehicle_pos[0],vehicle_pos[1],
+                        vehicle_v,0,0,vehicle_acc,0,0,vehicle_heading,
+                        robot_pos[0],robot_pos[1],meters_per_second,0,0,0,0,0,0]]   # 0 : unknown
+    data_tmp = pd.DataFrame(columns=test_key_each,data=each_case_data)
+    data_tmp.to_csv(path+'case_{}_{}.csv'.format(current_case_id+1,time.time()),index=False)
+
+# wait while update distance buffer
+def smart_wait(time):
+    for _ in range(int(time/0.02)):
+        update_dis_buffer()
+        time.sleep(0.02)
+
+
+####################################################################################################
 # control logic
 
 # connect to vehicle
@@ -341,120 +464,42 @@ while not connected:
 # sio.wait()
 print("connected")
 
-# trigger signal
-def trigger_flag(trigger_dis,robot_pos,vehicle_pos,vehicle_heading):
-    #dis = np.dot(robot_pos-vehicle_pos,vehicle_heading)
-    #L2_dis = np.linalg.norm(robot_pos-vehicle_pos)
-    dis = np.linalg.norm(robot_pos-vehicle_pos)
-    trigger_dis = 30
-    if dis < trigger_dis and dis > 0: #and np.sqrt(pow(L2_dis,2)-pow(dis,2)) < 5:
-        return True
-    else:
-        return False
-# reverse signal
-def reverse_flag(robot_pos,vehicle_pos,vehicle_heading):
-    distance = np.linalg.norm(robot_pos-vehicle_pos)
-    if distance > 10 and dis_buffer[-1] > dis_buffer[-2]:
-        return True
-    else:
-        return False
-
-def get_pos(vehicle_lat,vehicle_lon,robot_lat,robot_lon):
-    vehicle_pos_tmp = utm.from_latlon(vehicle_lat,vehicle_lon)
-    vehicle_pos = np.array(vehicle_pos_tmp[0:2])
-    robot_pos_tmp = utm.from_latlon(robot_lat,robot_lon)
-    robot_pos = np.array(robot_pos_tmp[0:2])
-    return vehicle_pos,robot_pos
-
-def get_err(trigger_dis,vehicle_pos,robot_pos,vehicle_heading):
-    #distance = np.dot(robot_pos-vehicle_pos,vehicle_heading)
-    distance = np.linalg.norm(robot_pos-vehicle_pos)
-    dis_err = np.abs(trigger_dis-distance)
-    return dis_err
-    
 # receive vehicle info and trigger robot   
-import utm
-import numpy as np
-import json
-import pandas as pd
-import time
-import csv
-with open("./VRU_crosswalk.json", "r", encoding="utf-8") as f:
-    content = json.load(f)
-test_info_dict = []
-for level in ['low','mid','high']:
-    for info in content[level]:
-        info.update({'Risk level':level})
-        test_info_dict.append(info)
+test_info_dict = load_test_info("./VRU_crosswalk.json")
 total_case_num = len(test_info_dict)
-current_case_id = 0
+if len(sys.argv) == 2:
+    current_case_id = int(sys.argv[1])
+    if current_case_id > total_case_num - 1:
+        print("error case id, max value is ", total_case_num - 1)
+else:
+    current_case_id = 0
 test_data_path = './cases_data/'
-test_key_all = ["case_id","Risk level","Triggered dis",'Crossing sp',"Crossing dis",'Initial timestamp',"Dis err",'Sp err','VUT init sp']
-test_key_each = ['timestamp', 'VUT x', 'VUT y', 'VUT sp', 'VUT lon sp', 'VUT lat sp', 'VUT acc', 'VUT lon acc', 'VUT lat acc', 'VUT heading', 'challenger x', 'challenger y', 'challenger sp', 'challenger lon sp', 'challenger lat sp', 'challenger acc', 'challenger lon acc', 'challenger lat acc', 'challenger heading']
 all_case_data = []
-dis_buffer = []
-buffer_len = 200
-for i in range(buffer_len):
-    time.sleep(0.01)
-    vehicle_pos,robot_pos = get_pos(vehicle_lat,vehicle_lon,robot_lat,robot_lon)
-    dis_buffer.append(np.linalg.norm(vehicle_pos-robot_pos))
-print("distance buffer ready")
+dis_buffer = init_dis_buffer(buffer_len=200)
 while current_case_id < total_case_num:
-    time.sleep(0.01)
+    time.sleep(0.02)
     test_info = test_info_dict[current_case_id]
-    meters = test_info['crossing dis']
-    meters = 10
-    meters_per_second = test_info['crossing sp']
-    trigger_dis = test_info['triggered dis']
-    #print(vehicle_lat,vehicle_lon,robot_lat,robot_lon)
-    vehicle_pos,robot_pos = get_pos(vehicle_lat,vehicle_lon,robot_lat,robot_lon)
-    with open('./vehicle_pos.csv', 'a', newline='') as csvfile:
-        csvwriter = csv.writer(csvfile)
-        csvwriter.writerow(list(vehicle_pos)+[Timestamp])
-    with open('./robot_pos.csv', 'a', newline='') as csvfile2:
-        csvwriter2 = csv.writer(csvfile2)
-        csvwriter2.writerow(list(robot_pos)+[robot_timestamp])
+    meters, meters_per_second, trigger_dis = extract_test_info(test_info)
+    vehicle_pos,robot_pos = get_pos()
+    #gps_test('./',vehicle_pos,robot_pos)
     print(np.linalg.norm(vehicle_pos-robot_pos))
-    dis_buffer.append(np.linalg.norm(vehicle_pos-robot_pos))
-    dis_buffer.pop(0)
-    dis_buffer[buffer_len-1] = np.mean(np.array(dis_buffer[buffer_len-1-100:buffer_len]))
-    if trigger_flag(trigger_dis,robot_pos,vehicle_pos,vehicle_heading) and 0:
+    update_dis_buffer()
+    if trigger_flag(trigger_dis,robot_pos,vehicle_pos) and 0:
         print("trigger")
         # go ahead
-        sent = False
         trigger(proxy_id, meters, meters_per_second)
-        while not sent:
-            time.sleep(0.001)
-        vehicle_pos,robot_pos = get_pos(vehicle_lat,vehicle_lon,robot_lat,robot_lon)
-        all_case_data.append(
-            [current_case_id+1,test_info["Risk level"],test_info['triggered dis'],
-             test_info['crossing sp'],test_info['crossing dis'],Timestamp,
-             get_err(trigger_dis,vehicle_pos,robot_pos,vehicle_heading),0,vehicle_v]
-        )
-        # record case data
-        each_case_data = [[Timestamp,vehicle_pos[0],vehicle_pos[1],
-                          vehicle_v,0,0,vehicle_acc,0,0,vehicle_heading,
-                          robot_pos[0],robot_pos[1],meters_per_second,0,0,0,0,0,0]]# 0 : unknown
-        data_tmp = pd.DataFrame(columns=test_key_each,data=each_case_data)
-        data_tmp.to_csv(test_data_path+'case_{}_{}.csv'.format(current_case_id+1,time.time()),index=False)
+        all_case_data = record_all_case_data(all_case_data,test_data_path,current_case_id,test_info)
+        record_each_case_data(test_data_path,current_case_id,meters_per_second)
         current_case_id = current_case_id + 1
-        time.sleep(meters/meters_per_second+3)
+        smart_wait(meters/meters_per_second + 3)
         # reverse
-        while not reverse_flag(robot_pos,vehicle_pos,vehicle_heading):
-            vehicle_pos,robot_pos = get_pos(vehicle_lat,vehicle_lon,robot_lat,robot_lon)
-            dis_buffer.append(np.linalg.norm(vehicle_pos-robot_pos))
-            dis_buffer.pop(0)
-            dis_buffer[buffer_len-1] = np.mean(np.array(dis_buffer[buffer_len-1-100:buffer_len]))
-            time.sleep(0.05)
-        sent = False
+        while not reverse_flag():
+            update_dis_buffer()
+            time.sleep(0.02)
         trigger(proxy_id, -meters, meters_per_second)
-        while not sent:
-            time.sleep(0.05)
-        time.sleep(abs(meters/meters_per_second) + 3)
+        smart_wait(meters/meters_per_second + 3)
 
-# record all data
-data_tmp = pd.DataFrame(columns=test_key_all,data=all_case_data)
-data_tmp.to_csv(test_data_path+'case_all_{}.csv'.format(time.time()),index=False)
+record_all_case_data(all_case_data,test_data_path,mode='end')
 
 # exit
 sio.disconnect()
