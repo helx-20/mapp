@@ -19,12 +19,14 @@ rosidl_generate_interfaces(${PROJECT_NAME}
 )
 ```
 #### 3.5 add the following lines to the package.xml:
+```
 <buildtool_depend>rosidl_default_generators</buildtool_depend>
 <exec_depend>rosidl_default_runtime</exec_depend>
 <member_of_group>rosidl_interface_packages</member_of_group>
-3.6 cd ros2_humble/src
-3.7 colcon build --packages-select mcity_msg
-3.8 . ~/ros2_humble/install/local_setup.bash
+```
+#### 3.6 cd ros2_humble/src
+#### 3.7 colcon build --packages-select mcity_msg
+#### 3.8 . ~/ros2_humble/install/local_setup.bash
 
 4. configure python environment
 4.1 conda create -n mapp python=3.10 (need to be the same version as ros2)
