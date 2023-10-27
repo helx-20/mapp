@@ -1,14 +1,14 @@
 # mapp project
 ## mapp setup
-1. configure ubuntu-22.04 
+### 1. configure ubuntu-22.04 
 https://ubuntu.com/download/desktop
 
-2. install ros2(humble) 
+### 2. install ros2(humble) 
 https://docs.ros.org/en/humble/Installation/Alternatives/Ubuntu-Development-Setup.html
 
-3. install mcity_msg/MAPPTrigger.msg to ros2
+### 3. install mcity_msg/MAPPTrigger.msg to ros2
 https://docs.ros.org/en/humble/Tutorials/Beginner-Client-Libraries/Custom-ROS2-Interfaces.html
-3.1 cd ros2_humble/src
+#### 3.1 cd ros2_humble/src
 3.2 ros2 pkg create --build-type ament_cmake mcity_msg
 3.3 copy "mcity_msg/msg" folder into the new "mcity_msg" folder
 3.4 add the following lines to the CMakeLists.txt inside:
