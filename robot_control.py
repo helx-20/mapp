@@ -225,6 +225,8 @@ if not os.path.exists(path):
 # record vehicle info
 vehicle_lon = -83
 vehicle_lat = 42
+vehicle_last_lon = -83
+vehicle_last_lat = 42
 vehicle_heading = []
 Timestamp = []
 vehicle_v = 0
@@ -311,6 +313,10 @@ def on_beacon_update(data):
         Timestamp = data['state']['dynamics']['updated']
         vehicle_v = data['state']['dynamics']['velocity']
         vehicle_acc = data['state']['dynamics']['acceleration']
+        global vehicle_last_lat
+        global vehicle_last_lon
+        vehicle_last_lat = vehicle_lat
+        vehicle_last_lon = vehicle_lon
         global vehicle_lon
         global vehicle_lat
         global vehicle_heading
@@ -335,10 +341,13 @@ def on_v2x(data):
 
 # trigger signal
 def trigger_flag(trigger_dis,robot_pos,vehicle_pos):
-    #L2_dis = np.linalg.norm(robot_pos-vehicle_pos)
-    dis = np.linalg.norm(robot_pos-vehicle_pos)
-    trigger_dis = 30
-    if dis < trigger_dis and dis > 0: #and np.sqrt(pow(L2_dis,2)-pow(dis,2)) < 5:
+    L2_dis = np.linalg.norm(robot_pos-vehicle_pos)
+    heading = get_heading()
+    dis = np.dot(robot_pos-vehicle_pos,heading)
+    #dis = np.linalg.norm(robot_pos-vehicle_pos)
+    #trigger_dis = 30
+    gps_to_car_head_dis = 0
+    if dis < trigger_dis + gps_to_car_head_dis and dis > 0 and np.sqrt(pow(L2_dis,2)-pow(dis,2)) < 10:
         return True
     else:
         return False
@@ -362,6 +371,22 @@ def get_pos():
     robot_pos_tmp = utm.from_latlon(robot_lat,robot_lon)
     robot_pos = np.array(robot_pos_tmp[0:2])
     return vehicle_pos,robot_pos
+
+# get vehicle heading by distance difference
+def get_heading():
+    global vehicle_lat,vehicle_lon,vehicle_last_lat,vehicle_last_lon
+    vehicle_pos_tmp = utm.from_latlon(vehicle_lat,vehicle_lon)
+    vehicle_pos = np.array(vehicle_pos_tmp[0:2])
+    vehicle_last_pos_tmp = utm.from_latlon(vehicle_last_lat,vehicle_last_lon)
+    vehicle_last_pos = np.array(vehicle_last_pos_tmp[0:2])
+    direction = vehicle_pos - vehicle_last_pos
+    if vehicle_last_pos == vehicle_pos:
+        global robot_lat,robot_lon
+        robot_pos_tmp = utm.from_latlon(robot_lat,robot_lon)
+        robot_pos = np.array(robot_pos_tmp[0:2])
+        direction = robot_pos - vehicle_pos
+    heading = direction / np.linalg.norm(direction)
+    return heading
 
 # distance error
 def get_err(trigger_dis):
