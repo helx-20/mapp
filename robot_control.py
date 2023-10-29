@@ -315,16 +315,16 @@ def on_beacon_update(data):
         vehicle_acc = data['state']['dynamics']['acceleration']
         global vehicle_last_lat
         global vehicle_last_lon
-        vehicle_last_lat = vehicle_lat
-        vehicle_last_lon = vehicle_lon
         global vehicle_lon
         global vehicle_lat
         global vehicle_heading
+        vehicle_last_lat = vehicle_lat
+        vehicle_last_lon = vehicle_lon
         vehicle_lon = data['state']['dynamics']['longitude']
         vehicle_lat = data['state']['dynamics']['latitude']
         vehicle_heading = data['state']['dynamics']['heading']
-        if len(data_gps_box) % 1 == 0:
-            save_csv(data_gps_box, keys, path, 'gps_box_data', False)
+        #if len(data_gps_box) % 1 == 0:
+        #    save_csv(data_gps_box, keys, path, 'gps_box_data', False)
 
 @sio2.on('v2x_BSM', namespace=namespace2)
 def on_v2x(data):
@@ -347,7 +347,7 @@ def trigger_flag(trigger_dis,robot_pos,vehicle_pos):
     #dis = np.linalg.norm(robot_pos-vehicle_pos)
     #trigger_dis = 30
     gps_to_car_head_dis = 0
-    if dis < trigger_dis + gps_to_car_head_dis and dis > 0 and np.sqrt(pow(L2_dis,2)-pow(dis,2)) < 10:
+    if dis < trigger_dis + gps_to_car_head_dis and dis > 0 and np.sqrt(pow(L2_dis,2)-pow(dis,2)) < 10 and dis_buffer[-1] < dis_buffer[-2]:
         return True
     else:
         return False
@@ -380,7 +380,7 @@ def get_heading():
     vehicle_last_pos_tmp = utm.from_latlon(vehicle_last_lat,vehicle_last_lon)
     vehicle_last_pos = np.array(vehicle_last_pos_tmp[0:2])
     direction = vehicle_pos - vehicle_last_pos
-    if vehicle_last_pos == vehicle_pos:
+    if np.all(vehicle_last_pos == vehicle_pos):
         global robot_lat,robot_lon
         robot_pos_tmp = utm.from_latlon(robot_lat,robot_lon)
         robot_pos = np.array(robot_pos_tmp[0:2])
