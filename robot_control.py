@@ -496,6 +496,8 @@ if len(sys.argv) == 2:
         print("error case id, max value is ", total_case_num - 1)
 else:
     current_case_id = 0
+
+print(current_case_id)
 test_data_path = './cases_data/'
 all_case_data = []
 dis_buffer = init_dis_buffer(buffer_len=200)
