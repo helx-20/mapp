@@ -312,6 +312,7 @@ def on_beacon_update(data):
         global vehicle_v
         global vehicle_acc
         Timestamp = data['state']['dynamics']['updated']
+        #Timestamp = rospy.get_time()
         vehicle_v = data['state']['dynamics']['velocity']
         vehicle_acc = data['state']['dynamics']['acceleration']
         global vehicle_last_lat
